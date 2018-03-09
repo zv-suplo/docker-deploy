@@ -1,4 +1,4 @@
-FROM mhart/alpine-node:8
+FROM top20/node:8-alpine
 
 # THE REST COPIED FROM ruby:2-alpine
 # https://github.com/docker-library/ruby/blob/6bccf4bd0c6aa158b4a842c29f78c335ec9dc41b/2.5/alpine3.7/Dockerfile
