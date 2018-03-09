@@ -1,7 +1,7 @@
-FROM node:8
+FROM mhart/alpine-node:8
 
-# THE REST COPIED FROM ruby:2.4-jessie
-# https://github.com/docker-library/ruby/blob/83c60cc26a1efb0ea581b3343a97df7508481fcf/2.4/jessie/Dockerfile
+# THE REST COPIED FROM ruby:2-alpine
+# https://github.com/docker-library/ruby/blob/6bccf4bd0c6aa158b4a842c29f78c335ec9dc41b/2.5/alpine3.7/Dockerfile
 
 # skip installing gem documentation
 RUN mkdir -p /usr/local/etc \
@@ -10,25 +10,44 @@ RUN mkdir -p /usr/local/etc \
 		echo 'update: --no-document'; \
 	} >> /usr/local/etc/gemrc
 
-ENV RUBY_MAJOR 2.4
-ENV RUBY_VERSION 2.4.3
-ENV RUBY_DOWNLOAD_SHA256 23677d40bf3b7621ba64593c978df40b1e026d8653c74a0599f0ead78ed92b51
+ENV RUBY_MAJOR 2.5
+ENV RUBY_VERSION 2.5.0
+ENV RUBY_DOWNLOAD_SHA256 1da0afed833a0dab94075221a615c14487b05d0c407f991c8080d576d985b49b
 ENV RUBYGEMS_VERSION 2.7.6
 ENV BUNDLER_VERSION 1.16.1
 
 # some of ruby's build scripts are written in ruby
 #   we purge system ruby later to make sure our final image uses what we just built
+# readline-dev vs libedit-dev: https://bugs.ruby-lang.org/issues/11869 and https://github.com/docker-library/ruby/issues/75
 RUN set -ex \
 	\
-	&& buildDeps=' \
+	&& apk add --no-cache --virtual .ruby-builddeps \
+		autoconf \
 		bison \
-		dpkg-dev \
-		libgdbm-dev \
+		bzip2 \
+		bzip2-dev \
+		ca-certificates \
+		coreutils \
+		dpkg-dev dpkg \
+		gcc \
+		gdbm-dev \
+		glib-dev \
+		libc-dev \
+		libffi-dev \
+		libressl \
+		libressl-dev \
+		libxml2-dev \
+		libxslt-dev \
+		linux-headers \
+		make \
+		ncurses-dev \
+		procps \
+		readline-dev \
 		ruby \
-	' \
-	&& apt-get update \
-	&& apt-get install -y --no-install-recommends $buildDeps \
-	&& rm -rf /var/lib/apt/lists/* \
+		tar \
+		xz \
+		yaml-dev \
+		zlib-dev \
 	\
 	&& wget -O ruby.tar.xz "https://cache.ruby-lang.org/pub/ruby/${RUBY_MAJOR%-rc}/ruby-$RUBY_VERSION.tar.xz" \
 	&& echo "$RUBY_DOWNLOAD_SHA256 *ruby.tar.xz" | sha256sum -c - \
@@ -50,6 +69,8 @@ RUN set -ex \
 	\
 	&& autoconf \
 	&& gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)" \
+# the configure script does not detect isnan/isinf as macros
+	&& export ac_cv_func_isnan=yes ac_cv_func_isinf=yes \
 	&& ./configure \
 		--build="$gnuArch" \
 		--disable-install-doc \
@@ -57,7 +78,21 @@ RUN set -ex \
 	&& make -j "$(nproc)" \
 	&& make install \
 	\
-	&& apt-get purge -y --auto-remove $buildDeps \
+	&& runDeps="$( \
+		scanelf --needed --nobanner --format '%n#p' --recursive /usr/local \
+			| tr ',' '\n' \
+			| sort -u \
+			| awk 'system("[ -e /usr/local/lib/" $1 " ]") == 0 { next } { print "so:" $1 }' \
+	)" \
+	&& apk add --virtual .ruby-rundeps $runDeps \
+		bzip2 \
+		ca-certificates \
+		libffi-dev \
+		libressl-dev \
+		procps \
+		yaml-dev \
+		zlib-dev \
+	&& apk del .ruby-builddeps \
 	&& cd / \
 	&& rm -r /usr/src/ruby \
 	\
@@ -79,20 +114,13 @@ RUN mkdir -p "$GEM_HOME" "$BUNDLE_BIN" \
 CMD [ "irb" ]
 
 
+
 # END OF COPY
 
 
-
-# Set Up 'mongodb-tools'
-RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 0C49F3730359A14518585931BC711F9BA15703C6
-RUN echo "deb http://repo.mongodb.org/apt/debian jessie/mongodb-org/3.4 main" | tee /etc/apt/sources.list.d/mongodb-org-3.4.list
-RUN apt-get update -qqy
-
 # Install required tools
-RUN apt-get install -qqy \
-  mongodb-org-tools \
-  awscli \
-  && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+RUN apk --update add mongodb-tools
+RUN apk --update add aws-cli --update-cache --repository http://dl-3.alpinelinux.org/alpine/edge/testing/ --allow-untrusted
 
 # Set Up Heroku Deployer
 RUN gem install dpl
