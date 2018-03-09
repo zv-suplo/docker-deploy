@@ -9,10 +9,13 @@ RUN apt-get update -qqy
 RUN apt-get install -qqy \
   mongodb-org-tools \
   awscli \
-  ruby \
+  ruby
+
+RUN apt-get install -qqy \
   ruby-dev \
-  rubygems-integration \
-  && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+  rubygems-integration
+
+RUN rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
 # Set Up Heroku Deployer
 RUN gem install dpl
