@@ -1,4 +1,4 @@
-FROM node:8
+FROM node:12
 
 # THE REST COPIED FROM ruby:2.4-jessie
 # https://github.com/docker-library/ruby/blob/83c60cc26a1efb0ea581b3343a97df7508481fcf/2.4/jessie/Dockerfile
